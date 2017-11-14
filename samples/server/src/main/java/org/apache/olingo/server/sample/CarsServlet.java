@@ -57,6 +57,7 @@ public class CarsServlet extends HttpServlet {
       OData odata = OData.newInstance();
       ServiceMetadata edm = odata.createServiceMetadata(new CarsEdmProvider(), new ArrayList<EdmxReference>());
       ODataHttpHandler handler = odata.createHandler(edm);
+      handler.register(new CustomDefaultProcessor());
       handler.register(new CarsProcessor(dataProvider));
       handler.process(req, resp);
     } catch (RuntimeException e) {

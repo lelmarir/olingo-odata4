@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
@@ -20,6 +20,8 @@ package org.apache.olingo.server.sample.processor;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Locale;
@@ -110,7 +112,7 @@ public class CarsProcessor implements EntityCollectionProcessor, EntityProcessor
         EntityCollectionSerializerOptions.with()
             .id(id)
             .contextURL(isODataMetadataNone(requestedContentType) ? null :
-                getContextUrl(edmEntitySet, false, expand, select, null))
+                getContextUrl(edmEntitySet, false, expand, select, null, request.getRawBaseUri()))
             .count(uriInfo.getCountOption())
             .expand(expand).select(select)
             .build()).getContent();
@@ -147,7 +149,7 @@ public class CarsProcessor implements EntityCollectionProcessor, EntityProcessor
       InputStream serializedContent = serializer.entity(edm, edmEntitySet.getEntityType(), entity,
           EntitySerializerOptions.with()
               .contextURL(isODataMetadataNone(requestedContentType) ? null :
-                  getContextUrl(edmEntitySet, true, expand, select, null))
+                  getContextUrl(edmEntitySet, true, expand, select, null, request.getRawBaseUri()))
               .expand(expand).select(select)
               .build()).getContent();
       response.setContent(serializedContent);
@@ -174,13 +176,13 @@ public class CarsProcessor implements EntityCollectionProcessor, EntityProcessor
   @Override
   public void readPrimitive(ODataRequest request, ODataResponse response, UriInfo uriInfo, ContentType format)
           throws ODataApplicationException, SerializerException {
-    readProperty(response, uriInfo, format, false);
+    readProperty(request, response, uriInfo, format, false);
   }
 
   @Override
   public void readComplex(ODataRequest request, ODataResponse response, UriInfo uriInfo, ContentType format)
           throws ODataApplicationException, SerializerException {
-    readProperty(response, uriInfo, format, true);
+    readProperty(request, response, uriInfo, format, true);
   }
 
   @Override
@@ -223,7 +225,7 @@ public class CarsProcessor implements EntityCollectionProcessor, EntityProcessor
     }
   }
 
-  private void readProperty(ODataResponse response, UriInfo uriInfo, ContentType contentType,
+  private void readProperty(ODataRequest request, ODataResponse response, UriInfo uriInfo, ContentType contentType,
       boolean complex) throws ODataApplicationException, SerializerException {
     // To read a property we have to first get the entity out of the entity set
     final EdmEntitySet edmEntitySet = getEdmEntitySet(uriInfo.asUriInfoResource());
@@ -254,7 +256,7 @@ public class CarsProcessor implements EntityCollectionProcessor, EntityProcessor
         } else {
           ODataSerializer serializer = odata.createSerializer(contentType);
           final ContextURL contextURL = isODataMetadataNone(contentType) ? null :
-              getContextUrl(edmEntitySet, true, null, null, edmProperty.getName());
+              getContextUrl(edmEntitySet, true, null, null, edmProperty.getName(), request.getRawBaseUri());
           InputStream serializerContent = complex ?
               serializer.complex(edm, (EdmComplexType) edmProperty.getType(), property,
                   ComplexSerializerOptions.with().contextURL(contextURL).build()).getContent() :
@@ -300,14 +302,19 @@ public class CarsProcessor implements EntityCollectionProcessor, EntityProcessor
   }
 
   private ContextURL getContextUrl(final EdmEntitySet entitySet, final boolean isSingleEntity,
-      final ExpandOption expand, final SelectOption select, final String navOrPropertyPath)
+      final ExpandOption expand, final SelectOption select, final String navOrPropertyPath, String serviceRoot)
       throws SerializerException {
 
-    return ContextURL.with().entitySet(entitySet)
+	try {
+      return ContextURL.with().entitySet(entitySet)
         .selectList(odata.createUriHelper().buildContextURLSelectList(entitySet.getEntityType(), expand, select))
         .suffix(isSingleEntity ? Suffix.ENTITY : null)
         .navOrPropertyPath(navOrPropertyPath)
+		.serviceRoot(new URI(serviceRoot))
         .build();
+	} catch (URISyntaxException e) {
+		throw new RuntimeException(e);
+	}
   }
 
   @Override
